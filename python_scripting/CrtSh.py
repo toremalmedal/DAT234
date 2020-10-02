@@ -64,7 +64,8 @@ class CrtSh:
     def get_domains(self):
         """
         query_domain []
-        Returns: Response object
+        Returns:
+        set of str
         """
 
         payload = {'q': self.url}
@@ -72,19 +73,28 @@ class CrtSh:
 
         soup = BeautifulSoup(r.text, 'lxml')
         tables = soup.find_all('table')
+  
+        # The web page has 3 tables, whithout any ID, nested inside each other. 
+        # We want the third table
+        # Table headers: 
+        # [crt.sh ID, Logged at, Not Befor, Not After, Common Name, Matchin identities, Issuer Name]
+
         rows = tables[2].findAll('tr')
         domains_set = set()
         for row in rows:
             cells = row.findAll('td')
-
             if((len(cells)) > 3):
+                
+                #We add the Common Name to our domains_set first
                 logging.info(f'Adding {cells[4].text} to domains list')
                 domains_set.add(cells[4].text)
-                #Dont judge me for this triple replace:
-                matching_ident = (str(cells[4])).replace('</br>', '\n').replace('<td>', '').replace('</td>', '')
-                domains_set.add(matching_ident)
+
+                # Matchin Identitites column can contain several domains separated with a <br>-tag:
+                matching_idents = (str(cells[5]).replace('<td>', '').replace('</td>', '').split('<br/>'))
                 
-        print(domains_set)
+                for ident in matching_idents:
+                    domains_set.add(ident)
+        return domains_set
 
     def sort_subdomains(self):
         pass
