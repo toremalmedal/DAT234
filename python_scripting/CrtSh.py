@@ -32,6 +32,8 @@ class CrtSh:
         """
 
         self.url = url
+        self.live_domains = []
+        self.dead_domains = []
 
     def check_crtsh(self):
         """
@@ -48,13 +50,13 @@ class CrtSh:
             sys.exit(69)
         return r
 
-    def validate_url_string(self):
+    def validate_url_string(self, url:str):
         """
         validate_url_string [Checks if the string seems to be a valid url using regex]
         Returns: True if match, false if not. 
         """
 
-        if(re.fullmatch(r"[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)",self.url) != None):
+        if(re.fullmatch(r"[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)", url) != None):
             logging.info(f'Url {self.url} matches regex')
             return True
             
@@ -80,6 +82,7 @@ class CrtSh:
         # We want the third table
         # Table headers: 
         # [crt.sh ID, Logged at, Not Befor, Not After, Common Name, Matchin identities, Issuer Name]
+
         if(len(tables) < 3):
             domains_set.add('NaN')
             return domains_set
@@ -99,9 +102,22 @@ class CrtSh:
                 for ident in matching_idents:
                     domains_set.add(ident)
         return domains_set
+    
+    def valid_subdomains(self, domains_set: set):
+        valid_domains = set()
+        for domain in domains_set:
+            if self.validate_url_string(domain):
+                valid_domains.add(domain)
+        return valid_domains
 
-    def sort_subdomains(self):
-        pass
+
+    def check_subdomains(self, valid_set: set):
+        for domain in valid_set:
+            try:
+                r = requests.get(f'http://{domain}', timeout=2)
+                self.live_domains.append(domain)
+            except:
+                self.dead_domains.append(domain)
 
     def sort(self):
         pass
@@ -113,11 +129,22 @@ if __name__ == "__main__":
     args = argument_setup()
     crt_sh = CrtSh(args.domain)
     crt_sh.check_crtsh()
-    if not(crt_sh.validate_url_string()): 
+
+    if not(crt_sh.validate_url_string(args.domain)): 
         print('Not valid url, exiting')
         sys.exit(42)
 
-    print(f'''https://crt.sh/ is online, url seems ok.
-    Starting search for subdomains for {crt_sh.url}''')
-
-    print(f'Found domains: \n {crt_sh.get_domains()}')
+    print(f'crt.sh is online, url seems ok. \nStarting search for subdomains for {crt_sh.url}')
+    valid_domains = crt_sh.valid_subdomains(crt_sh.get_domains())
+    print(f'Found {len(valid_domains)} subdomains.')
+    crt_sh.check_subdomains(valid_domains)
+    
+    print()
+    print(f'Living Domains ({float(len(crt_sh.live_domains))/float(len(valid_domains))*100}%)')
+    for domain in crt_sh.live_domains:
+        print(domain)
+    
+    print()
+    print(f'Dead Domains ({float(len(crt_sh.dead_domains))/float(len(valid_domains))*100}%)')
+    for domain in crt_sh.dead_domains:
+        print(domain)
