@@ -1,0 +1,5 @@
+#!/bin/bash
+echo "Time, Dr. Freeman"
+echo '*dramatic pause, heavy breath*'
+sleep 2
+echo "Is it really that time again?"
