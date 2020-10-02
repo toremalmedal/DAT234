@@ -73,14 +73,18 @@ class CrtSh:
 
         soup = BeautifulSoup(r.text, 'lxml')
         tables = soup.find_all('table')
+
+        domains_set = set()
   
         # The web page has 3 tables, whithout any ID, nested inside each other. 
         # We want the third table
         # Table headers: 
         # [crt.sh ID, Logged at, Not Befor, Not After, Common Name, Matchin identities, Issuer Name]
-
+        if(len(tables) < 3):
+            domains_set.add('NaN')
+            return domains_set
         rows = tables[2].findAll('tr')
-        domains_set = set()
+        
         for row in rows:
             cells = row.findAll('td')
             if((len(cells)) > 3):
@@ -106,19 +110,14 @@ class CrtSh:
         pass
 
 if __name__ == "__main__":
-
-
     args = argument_setup()
-
     crt_sh = CrtSh(args.domain)
-
     crt_sh.check_crtsh()
     if not(crt_sh.validate_url_string()): 
         print('Not valid url, exiting')
         sys.exit(42)
 
-    print(f'''
-    https://crt.sh/ is online, url seems ok.
+    print(f'''https://crt.sh/ is online, url seems ok.
     Starting search for subdomains for {crt_sh.url}''')
 
-    crt_sh.get_domains()
+    print(f'Found domains: \n {crt_sh.get_domains()}')
