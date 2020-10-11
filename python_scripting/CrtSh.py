@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 
 #TODO: PEP8
-#TODO: PEP257
-#TODO: PEP484
 
 import requests
 import argparse
@@ -10,6 +8,7 @@ import sys
 import logging
 import re
 import json
+import os
 from bs4 import BeautifulSoup
 from datetime import date
 
@@ -156,12 +155,16 @@ class CrtSh:
                 title = 'NaN'
             titles[domain] = title
 
+        if os.path.exists(f'{self._url}-{self._date}.json'):
+            os.remove(f'{self._url}-{self._date}.json')
+
         with open(f'{self._url}-{self._date}.json', "a") as write_file:
             json.dump(titles, write_file)
 
     def print_titles(self):
         """Prints titles from local JSON-file
         """
+
         with open(f'{self._url}-{self._date}.json') as read_file:
             parsed = json.load(read_file)
         print(json.dumps(parsed, indent=2, sort_keys=True))
@@ -174,11 +177,11 @@ class CrtSh:
         print(f'Found {len(valid_domains)} subdomains.')
         self.check_subdomains(valid_domains)
         
-        print(f'\nLiving Domains ({float(len(self._live_domains))/float(len(valid_domains))*100}%)')
+        print('\nLiving Domains ({:.2f}%)'.format(float(len(self._live_domains))/float(len(valid_domains))*100))
         for domain in self._live_domains:
             print(domain)
             
-        print(f'\nDead Domains ({float(len(self._dead_domains))/float(len(valid_domains))*100}%)')
+        print('\nDead Domains ({:.2f}%)'.format(float(len(self._dead_domains))/float(len(valid_domains))*100))
         for domain in self._dead_domains:
             print(domain)
                     
@@ -194,7 +197,7 @@ if __name__ == "__main__":
         sys.exit(42)
 
     print(f'\ncrt.sh is online, url seems ok.')
-    
+
     valid_domains = crt_sh.valid_subdomains(crt_sh.get_domains())
 
     crt_sh.print_domains()
