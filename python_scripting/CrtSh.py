@@ -30,12 +30,12 @@ class CrtSh:
         """Constructor for CrtSh.
         """
 
-        self.url = url
-        self.live_domains = []
-        self.dead_domains = []
-        self.date = date.today().strftime("%d-%m-%Y")
+        self._url=url
+        self._live_domains = []
+        self._dead_domains = []
+        self._date= date.today().strftime("%d-%m-%Y")
 
-    def check_crtsh(self):
+    def check_connectivity(self):
         """Checks if crt.sh responds with 200
 
         Returns:
@@ -56,10 +56,10 @@ class CrtSh:
         """
 
         if(re.fullmatch(r"[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)", url) != None):
-            logging.info(f'Url {self.url} matches regex')
+            logging.info(f'Url {self._url} matches regex')
             return True
             
-        logging.info(f'Url {self.url} does not match regex')
+        logging.info(f'Url {self._url} does not match regex')
         return False
     
     def get_domains(self):
@@ -68,8 +68,9 @@ class CrtSh:
         Returns:
             set: Set of subdomains. Single entry 'NaN' if no results are found.
         """
+        print('\nStarting search for subdomains for {self._url}')
 
-        payload = {'q': self.url}
+        payload = {'q': self._url}
         r = requests.get('https://crt.sh', params=payload)
 
         soup = BeautifulSoup(r.text, 'lxml')
@@ -132,20 +133,22 @@ class CrtSh:
             try:
                 r = requests.get(f'http://{domain}', timeout=2)
                 if(r.status_code == 200):
-                    self.live_domains.append(domain)
+                    self._live_domains.append(domain)
             except:
-                self.dead_domains.append(domain)
+                self._dead_domains.append(domain)
 
     def grep_title(self):
         """Finds titles of live domains.
 
         Finds titles of live domains.. Makes a GET request to each domain in
-        self.live_domains and tries to find the title. The tiles are saved to
+        self._live_domains and tries to find the title. The tiles are saved to
         a local JSON-file, using the super-domain name and date as title.
         """
 
+        print(f'\nLooking for titles.')
+
         titles = {}
-        for domain in self.live_domains:
+        for domain in self._live_domains:
             r = requests.get(f'http://{domain}', timeout=3)
             try:
                 title = BeautifulSoup(r.text, 'lxml').find('title').text
@@ -153,39 +156,47 @@ class CrtSh:
                 title = 'NaN'
             titles[domain] = title
 
-        with open(f'{self.url}-{self.date}.json', "a") as write_file:
+        with open(f'{self._url}-{self._date}.json', "a") as write_file:
             json.dump(titles, write_file)
 
     def print_titles(self):
         """Prints titles from local JSON-file
         """
-        with open(f'{self.url}-{self.date}.json') as read_file:
+        with open(f'{self._url}-{self._date}.json') as read_file:
             parsed = json.load(read_file)
         print(json.dumps(parsed, indent=2, sort_keys=True))
-                
+
+    def print_domains(self):
+        """Prints all alive and all dead domains, showing the percentage
+        of each
+        """
+
+        print(f'Found {len(valid_domains)} subdomains.')
+        self.check_subdomains(valid_domains)
+        
+        print(f'\nLiving Domains ({float(len(self._live_domains))/float(len(valid_domains))*100}%)')
+        for domain in self._live_domains:
+            print(domain)
+            
+        print(f'\nDead Domains ({float(len(self._dead_domains))/float(len(valid_domains))*100}%)')
+        for domain in self._dead_domains:
+            print(domain)
+                    
 
 if __name__ == "__main__":
     args = argument_setup()
     crt_sh = CrtSh(args.domain)
-    crt_sh.check_crtsh()
+    
+    crt_sh.check_connectivity()
 
     if not(crt_sh.validate_url_string(args.domain)): 
         print('Not valid url, exiting')
         sys.exit(42)
 
-    print(f'\ncrt.sh is online, url seems ok. \nStarting search for subdomains for {crt_sh.url}')
-    valid_domains = crt_sh.valid_subdomains(crt_sh.get_domains())
-    print(f'Found {len(valid_domains)} subdomains.')
-    crt_sh.check_subdomains(valid_domains)
+    print(f'\ncrt.sh is online, url seems ok.')
     
-    print(f'\nLiving Domains ({float(len(crt_sh.live_domains))/float(len(valid_domains))*100}%)')
-    for domain in crt_sh.live_domains:
-        print(domain)
-        
-    print(f'\nDead Domains ({float(len(crt_sh.dead_domains))/float(len(valid_domains))*100}%)')
-    for domain in crt_sh.dead_domains:
-        print(domain)
+    valid_domains = crt_sh.valid_subdomains(crt_sh.get_domains())
 
-    print(f'\nLooking for titles.')
+    crt_sh.print_domains()
     crt_sh.grep_title()
     crt_sh.print_titles()
