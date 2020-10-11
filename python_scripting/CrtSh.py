@@ -1,46 +1,54 @@
 #!/usr/bin/env python3
 
+#TODO: Make sure that PEP8 (style), PEP484 (type hints)
+# as well as PEP257 (docstrings) is followed.
+
 import requests
 import argparse
 import sys
 import logging
 import re
+import json
 from bs4 import BeautifulSoup
+from datetime import date
 
 def argument_setup():
     """
     argument_setup [Set-up for command-line interface]
 
-    Returns: Args (from parser???? hva faen slags objektype er dette a??)
-        
+    Returns: 
+        namespace object
     """
     parser = argparse.ArgumentParser(description="crt_sh subdomain searcher")
     parser.add_argument('--domain', metavar='domain', 
     help='the domain to check for subdomains (default: betauia.net)',
     default="betauia.net")
-    return parser.parse_args()
+    return parser.parse_args()  
 
 class CrtSh:
     def __init__(self, url: str):
         """
-        __init__ [summary]
+        Constructor for CrtSh.
 
-        [extended_summary]
+        Parameters:
 
         Args:
             url (str): [The url of to check for subdomains]
+
+        Returns:
+
         """
 
         self.url = url
         self.live_domains = []
         self.dead_domains = []
+        self.date = date.today().strftime("%d-%m-%Y")
 
     def check_crtsh(self):
-        """
-        check_crtsh [Checks if https://crt.sh/ responds with 200]
+        """Checks if https://crt.sh/ responds with 200
 
         Returns:
-            [response]: [return http response object]
+            r: Response object
             Throws exception SystemExit if status code is != 200
         """
 
@@ -51,8 +59,8 @@ class CrtSh:
         return r
 
     def validate_url_string(self, url:str):
-        """
-        validate_url_string [Checks if the string seems to be a valid url using regex]
+        """Checks if the string seems to be a valid url using regex
+        
         Returns: True if match, false if not. 
         """
 
@@ -115,15 +123,33 @@ class CrtSh:
         for domain in valid_set:
             try:
                 r = requests.get(f'http://{domain}', timeout=2)
-                self.live_domains.append(domain)
+                if(r.status_code == 200):
+                    self.live_domains.append(domain)
             except:
                 self.dead_domains.append(domain)
 
-    def sort(self):
-        pass
+    #TODO: Visit each active domain and grep header and store it together
+    # with the domain in a JSON file
+    # Vi vil ha <title>
+    
+    def grep_title(self):
+        titles = {}
+        for domain in self.live_domains:
+            r = requests.get(f'http://{domain}', timeout=3)
+            try:
+                title = BeautifulSoup(r.text, 'lxml').find('title').text
+            except:
+                title = 'NaN'
+            titles[domain] = title
 
-    def task_n(self):
-        pass
+        with open(f'titles_{self.date}.json', "a") as write_file:
+            json.dump(titles, write_file)
+
+    def print_titles(self):
+        with open(f'titles_{self.date}.json') as read_file:
+            parsed = json.load(read_file)
+        print(json.dumps(parsed, indent=2, sort_keys=True))
+                
 
 if __name__ == "__main__":
     args = argument_setup()
@@ -134,17 +160,19 @@ if __name__ == "__main__":
         print('Not valid url, exiting')
         sys.exit(42)
 
-    print(f'crt.sh is online, url seems ok. \nStarting search for subdomains for {crt_sh.url}')
+    print(f'\ncrt.sh is online, url seems ok. \nStarting search for subdomains for {crt_sh.url}')
     valid_domains = crt_sh.valid_subdomains(crt_sh.get_domains())
     print(f'Found {len(valid_domains)} subdomains.')
     crt_sh.check_subdomains(valid_domains)
     
-    print()
-    print(f'Living Domains ({float(len(crt_sh.live_domains))/float(len(valid_domains))*100}%)')
+    print(f'\nLiving Domains ({float(len(crt_sh.live_domains))/float(len(valid_domains))*100}%)')
     for domain in crt_sh.live_domains:
         print(domain)
-    
-    print()
-    print(f'Dead Domains ({float(len(crt_sh.dead_domains))/float(len(valid_domains))*100}%)')
+        
+    print(f'\nDead Domains ({float(len(crt_sh.dead_domains))/float(len(valid_domains))*100}%)')
     for domain in crt_sh.dead_domains:
         print(domain)
+
+    print(f'\nLooking for titles.')
+    crt_sh.grep_title()
+    crt_sh.print_titles()
