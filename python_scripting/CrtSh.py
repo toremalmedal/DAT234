@@ -12,6 +12,11 @@ import os
 from bs4 import BeautifulSoup
 from datetime import date
 
+logging.basicConfig(filename='./crtsh.log',
+                    format='%(asctime)s %(levelname)-8s %(message)s',
+                    level=logging.INFO,
+                    datefmt='%Y-%m-%d %H:%M:%S')
+
 def argument_setup():
     """Parses arguments from CLI
 
@@ -44,7 +49,7 @@ class CrtSh:
 
         r = requests.get('https://crt.sh/')
         if(r.status_code != 200):
-            logging.info(f'https://crt.sh/ returned {r.status_code}, exiting program.')
+            logging.error(f'https://crt.sh/ returned {r.status_code}, exiting program.')
             sys.exit(69)
         return r
 
@@ -67,7 +72,7 @@ class CrtSh:
         Returns:
             set: Set of subdomains. Single entry 'NaN' if no results are found.
         """
-        print('\nStarting search for subdomains for {self._url}')
+        print(f'\nStarting search for subdomains for {self._url}')
 
         payload = {'q': self._url}
         r = requests.get('https://crt.sh', params=payload)
