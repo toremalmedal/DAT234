@@ -60,10 +60,10 @@ class CrtSh:
         """
 
         if(re.fullmatch(r"[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)", url) != None):
-            logging.info(f'Url {self._url} matches regex')
+            logging.info(f'Url {url} matches regex')
             return True
             
-        logging.info(f'Url {self._url} does not match regex')
+        logging.info(f'Url {url} does not match regex')
         return False
     
     def get_domains(self):
@@ -97,7 +97,7 @@ class CrtSh:
             if((len(cells)) > 3):
                 
                 #We add the Common Name to our domains_set first
-                logging.info(f'Adding {cells[4].text} to domains list')
+                logging.info(f'Adding {cells[4].text} to domains set')
                 domains_set.add(cells[4].text)
 
                 # Matchin Identitites column can contain several domains separated with a <br>-tag:
