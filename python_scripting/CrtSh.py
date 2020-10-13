@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 
-#TODO: PEP8
-
 import requests
 import argparse
 import sys
@@ -97,7 +95,6 @@ class CrtSh:
             if((len(cells)) > 3):
                 
                 #We add the Common Name to our domains_set first
-                logging.info(f'Adding {cells[4].text} to domains set')
                 domains_set.add(cells[4].text)
 
                 # Matchin Identitites column can contain several domains separated with a <br>-tag:
@@ -105,6 +102,7 @@ class CrtSh:
                 
                 for ident in matching_idents:
                     domains_set.add(ident)
+        logging.info(f'Adding {domains_set} to domains set')
         return domains_set
     
     def valid_subdomains(self, domains_set: set):
@@ -137,6 +135,7 @@ class CrtSh:
             try:
                 r = requests.get(f'http://{domain}', timeout=2)
                 if(r.status_code == 200):
+                    logging.info(f'Received 200 for {domain}')
                     self._live_domains.append(domain)
             except:
                 self._dead_domains.append(domain)
@@ -153,18 +152,22 @@ class CrtSh:
 
         titles = {}
         for domain in self._live_domains:
-            r = requests.get(f'http://{domain}', timeout=3)
+            logging.info(f'Checking {domain} for title')
             try:
+                r = requests.get(f'http://{domain}', timeout=3)
                 title = BeautifulSoup(r.text, 'lxml').find('title').text
+                logging.info(f'Found title for {domain}')
             except:
                 title = 'NaN'
             titles[domain] = title
 
         if os.path.exists(f'{self._url}-{self._date}.json'):
+            logging.info(f'Removing existing file {self._url}-{self._date}.json')
             os.remove(f'{self._url}-{self._date}.json')
 
         with open(f'{self._url}-{self._date}.json', "a") as write_file:
             json.dump(titles, write_file)
+            logging.info(f'Finished writing titles to file {self._url}-{self._date}.json')
 
     def print_titles(self):
         """Prints titles from local JSON-file
