@@ -40,6 +40,7 @@ class CrtSh:
         self._dead_domains = []
         self.valid_domains = []
         self._date= date.today().strftime("%d-%m-%Y")
+        self._titles = {}
 
     def check_connectivity(self):
         """Checks if crt.sh responds with 200
@@ -121,33 +122,13 @@ class CrtSh:
         if self.validate_url_string(domain):
             return domain
 
-    def grep_title(self):
-        """Finds titles of live domains.
-
-        Finds titles of live domains.. Makes a GET request to each domain in
-        self._live_domains and tries to find the title. The tiles are saved to
-        a local JSON-file, using the super-domain name and date as title.
-        """
-
-        print(f'\nLooking for titles.')
-
-        titles = {}
-        for domain in self._live_domains:
-            logging.info(f'Checking {domain} for title')
-            try:
-                r = requests.get(domain, timeout=3)
-                title = BeautifulSoup(r.text, 'lxml').find('title').text
-                logging.info(f'Found title for {domain}: {title}')
-            except:
-                title = 'NaN'
-            titles[domain] = title
-
+    def write_titles_to_file(self):
         if os.path.exists(f'{self._url}-{self._date}.json'):
             logging.info(f'Removing existing file {self._url}-{self._date}.json')
             os.remove(f'{self._url}-{self._date}.json')
 
         with open(f'{self._url}-{self._date}.json', "a") as write_file:
-            json.dump(titles, write_file)
+            json.dump(self._titles, write_file)
             logging.info(f'Finished writing titles to file {self._url}-{self._date}.json')
 
     def print_titles(self):
@@ -178,6 +159,10 @@ class CrtSh:
             async with session.get(url) as response:
                 if(response.status==200):
                     self._live_domains.append(url)
+                    try:
+                        self._titles[url] = BeautifulSoup(await response.text(), 'lxml').find('title').text
+                    except:
+                        self._titles[url] = 'NaN'
                 else:
                     self._dead_domains.append(url)
 
@@ -189,7 +174,7 @@ class CrtSh:
         
         # Fetch all responses within one Client session,
         # keep connection alive for all requests.
-        async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(verify_ssl=False)) as session:
+        async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl=False)) as session:
             for domain in domains:
                 task = asyncio.ensure_future(self.fetch(f'http://{domain}', session))
                 tasks.append(task)
@@ -221,5 +206,5 @@ if __name__ == "__main__":
     loop.run_until_complete(future)
 
     crt_sh.print_domains()
-    crt_sh.grep_title()
+    crt_sh.write_titles_to_file()
     crt_sh.print_titles()
