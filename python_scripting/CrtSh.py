@@ -134,7 +134,7 @@ class CrtSh:
     def print_titles(self):
         """Prints titles from local JSON-file
         """
-
+        print('\nDomains with titles:')
         with open(f'{self._url}-{self._date}.json') as read_file:
             parsed = json.load(read_file)
         print(json.dumps(parsed, indent=2, sort_keys=True))
@@ -154,7 +154,16 @@ class CrtSh:
         for domain in self._dead_domains:
             print(domain)
 
-    async def fetch(self, url, session):
+    async def fetch(self, url: str, session: aiohttp.ClientSession):
+        """Requests the domain, checks for HTTP response 200 and appends to
+        self._live_domans list. Then looks for the <title>-tag and adds it to 
+        self._titles dict. If response status i different from 200, site is
+        added to self._dead_domains.
+
+        Args:
+            url (str): the url to visit.
+            session (aiohttp.ClientSession): Session
+        """
         try:
             async with session.get(url) as response:
                 if(response.status==200):
@@ -169,7 +178,16 @@ class CrtSh:
         except aiohttp.ClientConnectionError as e:
             logging.warning(e.args)
 
-    async def check_subdomains(self, domains):
+    async def check_subdomains(self, domains: list):
+        """Asynchronously visits each domain in domains, 
+        checks for HTTP response 200 and appends to
+        self._live_domans list. Then looks for the <title>-tag and adds it to 
+        self._titles dict. If response status i different from 200, site is
+        added to self._dead_domains.
+
+        Args:
+            domains ([type]): [description]
+        """
         tasks = []
         
         # Fetch all responses within one Client session,
