@@ -10,6 +10,7 @@ import os
 import time
 import asyncio
 import aiohttp
+import inspect
 from bs4 import BeautifulSoup
 from datetime import date
 
@@ -28,11 +29,25 @@ def argument_setup():
     parser.add_argument('--domain', metavar='domain', 
     help='the domain to check for subdomains (default: betauia.net)',
     default="betauia.net")
+
+    parser.add_argument('--doc', 
+    help='Prints the docstring of classes and methods',
+    action='store_true')
+
     return parser.parse_args()
 
 class CrtSh:
     def __init__(self, url: str):
         """Constructor for CrtSh.
+
+        Args:
+            _url (str): The superdomain we want to find associated subdomains for
+            _live_domains (list: str): Domains responding with 200
+            _dead_domains (list: str): Domains responding with not 200, or which
+            induces other unfortunate events
+            valid_domains (list: str): Domains that passes a regex
+            _date (datetime.date): todays date
+            _titles (dict): Subdomain-title pairs.
         """
 
         self._url=url
@@ -186,7 +201,7 @@ class CrtSh:
         added to self._dead_domains.
 
         Args:
-            domains ([type]): [description]
+            domains (list: str): list of domains
         """
         tasks = []
         
@@ -202,6 +217,11 @@ class CrtSh:
 
 if __name__ == "__main__":
     args = argument_setup()
+
+    if(args.doc):
+        help(CrtSh)
+        sys.exit(69)
+
     crt_sh = CrtSh(args.domain)
     
     crt_sh.check_connectivity()
