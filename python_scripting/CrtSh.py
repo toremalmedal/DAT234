@@ -7,6 +7,9 @@ import logging
 import re
 import json
 import os
+import time
+import asyncio
+import aiohttp
 from bs4 import BeautifulSoup
 from datetime import date
 
@@ -35,7 +38,9 @@ class CrtSh:
         self._url=url
         self._live_domains = []
         self._dead_domains = []
+        self.valid_domains = []
         self._date= date.today().strftime("%d-%m-%Y")
+        self._titles = {}
 
     def check_connectivity(self):
         """Checks if crt.sh responds with 200
@@ -105,7 +110,7 @@ class CrtSh:
         logging.info(f'Adding {domains_set} to domains set')
         return domains_set
     
-    def valid_subdomains(self, domains_set: set):
+    def valid_subdomain(self, domain: set):
         """Validates a set of domains.
 
         Args:
@@ -114,65 +119,22 @@ class CrtSh:
         Returns:
             set: A set of valid domains. Empty set if none are found.
         """
+        if self.validate_url_string(domain):
+            return domain
 
-        valid_domains = set()
-        for domain in domains_set:
-            if self.validate_url_string(domain):
-                valid_domains.add(domain)
-        return valid_domains
-
-    def check_subdomains(self, valid_set: set):
-        """Checks a set of valid domains for http response 200.
-
-        Checks a set of valid domains for http response 200. The results
-        are stored in class variables live_domains and dead_domains.
-
-        Args:
-            valid_set (set): A set of valid domains.
-        """
-
-        for domain in valid_set:
-            try:
-                r = requests.get(f'http://{domain}', timeout=2)
-                if(r.status_code == 200):
-                    logging.info(f'Received 200 for {domain}')
-                    self._live_domains.append(domain)
-            except:
-                self._dead_domains.append(domain)
-
-    def grep_title(self):
-        """Finds titles of live domains.
-
-        Finds titles of live domains.. Makes a GET request to each domain in
-        self._live_domains and tries to find the title. The tiles are saved to
-        a local JSON-file, using the super-domain name and date as title.
-        """
-
-        print(f'\nLooking for titles.')
-
-        titles = {}
-        for domain in self._live_domains:
-            logging.info(f'Checking {domain} for title')
-            try:
-                r = requests.get(f'http://{domain}', timeout=3)
-                title = BeautifulSoup(r.text, 'lxml').find('title').text
-                logging.info(f'Found title for {domain}')
-            except:
-                title = 'NaN'
-            titles[domain] = title
-
+    def write_titles_to_file(self):
         if os.path.exists(f'{self._url}-{self._date}.json'):
             logging.info(f'Removing existing file {self._url}-{self._date}.json')
             os.remove(f'{self._url}-{self._date}.json')
 
         with open(f'{self._url}-{self._date}.json', "a") as write_file:
-            json.dump(titles, write_file)
+            json.dump(self._titles, write_file)
             logging.info(f'Finished writing titles to file {self._url}-{self._date}.json')
 
     def print_titles(self):
         """Prints titles from local JSON-file
         """
-
+        print('\nDomains with titles:')
         with open(f'{self._url}-{self._date}.json') as read_file:
             parsed = json.load(read_file)
         print(json.dumps(parsed, indent=2, sort_keys=True))
@@ -182,17 +144,61 @@ class CrtSh:
         of each
         """
 
-        print(f'Found {len(valid_domains)} subdomains.')
-        self.check_subdomains(valid_domains)
+        print(f'Found {len(self.valid_domains)} subdomains.')
         
-        print('\nLiving Domains ({:.2f}%)'.format(float(len(self._live_domains))/float(len(valid_domains))*100))
+        print('\nLiving Domains ({:.2f}%)'.format(float(len(self._live_domains))/float(len(self.valid_domains))*100))
         for domain in self._live_domains:
             print(domain)
             
-        print('\nDead Domains ({:.2f}%)'.format(float(len(self._dead_domains))/float(len(valid_domains))*100))
+        print('\nDead Domains ({:.2f}%)'.format(float(len(self._dead_domains))/float(len(self.valid_domains))*100))
         for domain in self._dead_domains:
             print(domain)
-                    
+
+    async def fetch(self, url: str, session: aiohttp.ClientSession):
+        """Requests the domain, checks for HTTP response 200 and appends to
+        self._live_domans list. Then looks for the <title>-tag and adds it to 
+        self._titles dict. If response status i different from 200, site is
+        added to self._dead_domains.
+
+        Args:
+            url (str): the url to visit.
+            session (aiohttp.ClientSession): Session
+        """
+        try:
+            async with session.get(url) as response:
+                if(response.status==200):
+                    self._live_domains.append(url)
+                    try:
+                        self._titles[url] = BeautifulSoup(await response.text(), 'lxml').find('title').text
+                    except:
+                        self._titles[url] = 'NaN'
+                else:
+                    self._dead_domains.append(url)
+
+        except aiohttp.ClientConnectionError as e:
+            logging.warning(e.args)
+
+    async def check_subdomains(self, domains: list):
+        """Asynchronously visits each domain in domains, 
+        checks for HTTP response 200 and appends to
+        self._live_domans list. Then looks for the <title>-tag and adds it to 
+        self._titles dict. If response status i different from 200, site is
+        added to self._dead_domains.
+
+        Args:
+            domains ([type]): [description]
+        """
+        tasks = []
+        
+        # Fetch all responses within one Client session,
+        # keep connection alive for all requests.
+        async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl=False)) as session:
+            for domain in domains:
+                task = asyncio.ensure_future(self.fetch(f'http://{domain}', session))
+                tasks.append(task)
+
+            await asyncio.gather(*tasks)
+
 
 if __name__ == "__main__":
     args = argument_setup()
@@ -206,8 +212,17 @@ if __name__ == "__main__":
 
     print(f'\ncrt.sh is online, url seems ok.')
 
-    valid_domains = crt_sh.valid_subdomains(crt_sh.get_domains())
+    domains = crt_sh.get_domains()
+
+    for domain in domains:
+        crt_sh.valid_domains.append(crt_sh.valid_subdomain(domain))
+
+    loop = asyncio.get_event_loop()
+
+    future = asyncio.ensure_future(crt_sh.check_subdomains(crt_sh.valid_domains))
+
+    loop.run_until_complete(future)
 
     crt_sh.print_domains()
-    crt_sh.grep_title()
+    crt_sh.write_titles_to_file()
     crt_sh.print_titles()
