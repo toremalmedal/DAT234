@@ -10,7 +10,6 @@ import os
 import time
 import asyncio
 import aiohttp
-import inspect
 from bs4 import BeautifulSoup
 from datetime import date
 
@@ -34,11 +33,19 @@ def argument_setup():
     help='Prints the docstring of classes and methods',
     action='store_true')
 
+    parser.add_argument('--timeout',
+    type = int,
+    help='Timeout in seconds to aiohttp sessions (default 5 minutes)',
+    default=5*60)
+
     return parser.parse_args()
 
 class CrtSh:
-    def __init__(self, url: str):
+    def __init__(self, url: str, timeout: int):
         """Constructor for CrtSh.
+
+        Params:
+
 
         Args:
             _url (str): The superdomain we want to find associated subdomains for
@@ -48,6 +55,7 @@ class CrtSh:
             valid_domains (list: str): Domains that passes a regex
             _date (datetime.date): todays date
             _titles (dict): Subdomain-title pairs.
+            _timeout (int): Seconds before aiohttp sessions timeout
         """
 
         self._url=url
@@ -56,6 +64,7 @@ class CrtSh:
         self.valid_domains = []
         self._date= date.today().strftime("%d-%m-%Y")
         self._titles = {}
+        self._timeout = timeout
 
     def check_connectivity(self):
         """Checks if crt.sh responds with 200
@@ -115,10 +124,11 @@ class CrtSh:
             if((len(cells)) > 3):
                 
                 #We add the Common Name to our domains_set first
-                domains_set.add(cells[4].text)
+                domains_set.add(cells[4].text.replace('www.', ''))
 
                 # Matchin Identitites column can contain several domains separated with a <br>-tag:
-                matching_idents = (str(cells[5]).replace('<td>', '').replace('</td>', '').split('<br/>'))
+                matching_idents = (str(cells[5]).replace('<td>', '')
+                .replace('</td>', '').replace('www.', '').split('<br/>'))
                 
                 for ident in matching_idents:
                     domains_set.add(ident)
@@ -181,17 +191,23 @@ class CrtSh:
         """
         try:
             async with session.get(url) as response:
+                logging.info(f'Sending GET request to {url}')
                 if(response.status==200):
                     self._live_domains.append(url)
                     try:
                         self._titles[url] = BeautifulSoup(await response.text(), 'lxml').find('title').text
                     except:
+                        logging.info(f'Could not find title for {url}')
                         self._titles[url] = 'NaN'
                 else:
                     self._dead_domains.append(url)
 
         except aiohttp.ClientConnectionError as e:
-            logging.warning(e.args)
+            logging.info(e.args)
+            self._dead_domains.append(url)
+        except asyncio.TimeoutError as e:
+            logging.warning(f'Timed out for {domain}')
+            self._dead_domains.append(url)
 
     async def check_subdomains(self, domains: list):
         """Asynchronously visits each domain in domains, 
@@ -207,7 +223,10 @@ class CrtSh:
         
         # Fetch all responses within one Client session,
         # keep connection alive for all requests.
-        async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl=False)) as session:
+        # async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl=False)) as session:
+        timeout = aiohttp.ClientTimeout(total = self._timeout)
+        async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl=False),
+        timeout=timeout) as session:
             for domain in domains:
                 task = asyncio.ensure_future(self.fetch(f'http://{domain}', session))
                 tasks.append(task)
@@ -222,7 +241,7 @@ if __name__ == "__main__":
         help(CrtSh)
         sys.exit(69)
 
-    crt_sh = CrtSh(args.domain)
+    crt_sh = CrtSh(args.domain, args.timeout)
     
     crt_sh.check_connectivity()
 
