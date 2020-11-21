@@ -8,5 +8,5 @@ docker run -v "$(pwd)"/scripts:/tmp/containerdata -it --rm mcr.microsoft.com/pow
 docker run -v "$(pwd)"/scripts:/tmp/containerdata -it --rm mcr.microsoft.com/powershell pwsh /tmp/containerdata/ping.ps1 127.0.0.1/24
 ```
 
-This should mounts the volume scripts to /tmp/containerdata, then runs the container interactively ( -i for keeping stdin open) with a terminal (-t).
+This mounts the volume scripts to /tmp/containerdata, then runs the container interactively ( -i for keeping stdin open) with a terminal (-t).
 The docker image used is mcr.microsoft.com/powershell, and it uses its pwsh-command to run the powershell-script.
