@@ -1,5 +1,10 @@
+function Show-Splash{
+    Get-Content -Path $PSScriptRoot/olivebranch
+}
+
 function Show-Menu{
     Clear-Host
+    Show-Splash
     Write-Host "Press '1' for encryption"
     Write-Host "Press '2' for decryption"
     Write-Host "Press 'q' to quit"
@@ -50,6 +55,7 @@ function Handle-Ciphering {
 
 do
 {
+    Show-Splash
     Show-Menu
     $selection = Read-Host
     switch ($selection)
